@@ -27,7 +27,7 @@
       const [showTip, setShowTip] = React.useState(true);
       
       // Base64 encoded API key
-      const encodedApiKey = 'c2stb3ItdjEtNTA2OGRmMzU0MjQ5MGIwOTFiNTI1MGE3NGMxNDAwYjQ4N2RkYTYyMzdmMDAyOTkyZDVhYzg0OTgxZDFlMjUzMg==';
+      const encodedApiKey = 'c2stb3ItdjEtN2U2NjRkNWRlOGFhZDdlYzljZTM4NmJhZjA5NDg5M2ZmMjY3NWZhNzNhNTBkODQyOWU4ZjEzMzU0MmUyMjEwOA==';
       // Decode the API key
       const apiKey = atob(encodedApiKey);
 
@@ -84,7 +84,7 @@
               'X-Title': 'Nutrition App'
             },
             body: JSON.stringify({
-              model: "google/gemma-3-4b-it:free",
+              model: "meta-llama/llama-4-maverick-17b-128e-instruct:free",
               messages: [
                 {
                   role: "user",
