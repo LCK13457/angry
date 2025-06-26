@@ -130,12 +130,12 @@
             }
         }
 
-        // Base64-encoded API key (replace with your actual encoded key)
+        // Base64-encoded API key from OpenRouter
         const encodedApiKey = 'c2stb3ItdjEtYTRhY2QxYWMzOGVlNTUwMjg3NzlmNmI3YzI4ZGU0NjM1MzNhMDMyYjE2ZmRkMWFjMzk2OTJhZjIwNTdjODg1MQ==';
         const apiKey = decodeApiKey(encodedApiKey);
 
-        // API endpoint (replace with your actual API endpoint)
-        const apiEndpoint = 'https://api.example.com/food-data';
+        // OpenRouter API endpoint
+        const apiEndpoint = 'https://openrouter.ai/api/v1/chat/completions';
 
         function checkFood() {
             const foodInput = document.getElementById('foodInput').value.toLowerCase();
@@ -160,68 +160,102 @@
             loading.style.display = "block";
             resultSection.style.display = "none";
 
-            // Make API request
-            fetch(`${apiEndpoint}?food=${encodeURIComponent(foodInput)}`, {
-                method: 'GET',
+            // Construct prompt for OpenRouter API
+            const prompt = `
+                Analyze the suitability of ${foodInput} for elderly individuals managing hypertension, hyperglycemia, and hyperlipidemia ("three highs"). Provide a JSON response with the following structure:
+                {
+                    "food": {
+                        "name": "${foodInput}",
+                        "ingredients": [list of main ingredients],
+                        "sodium": number (mg per serving),
+                        "sugar": number (g per serving),
+                        "saturatedFat": number (g per serving),
+                        "glycemicIndex": number,
+                        "status": "safe" or "warning",
+                        "message": "Recommendation message"
+                    }
+                }
+                If the food is not suitable, set status to "warning" and explain why in the message. If suitable, set status to "safe" and provide a positive recommendation.
+            `;
+
+            // Make API request to OpenRouter
+            fetch(apiEndpoint, {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': window.location.href, // Required by OpenRouter
+                    'X-Title': 'Elderly Diet Management'
+                },
+                body: JSON.stringify({
+                    model: 'google/gemma-3-4b-it:free',
+                    messages: [{ role: 'user', content: prompt }]
+                })
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Network response was not ok');
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
                 loading.style.display = "none";
-                if (data && data.food) {
-                    const food = data.food;
-                    let resultHTML = `
-                        <h3>Results for: ${foodInput.charAt(0).toUpperCase() + foodInput.slice(1)}</h3>
-                        <p><strong>Ingredients:</strong> ${food.ingredients.join(', ')}</p>
-                        <table>
-                            <tr>
-                                <th>Nutrient</th>
-                                <th>Amount (per serving)</th>
-                                <th>Concern Level</th>
-                            </tr>
-                            <tr>
-                                <td>Sodium</td>
-                                <td>${food.sodium}mg</td>
-                                <td>${food.sodium > 500 ? 'High' : 'Low'}</td>
-                            </tr>
-                            <tr>
-                                <td>Sugar</td>
-                                <td>${food.sugar}g</td>
-                                <td>${food.sugar > 5 ? 'High' : 'Low'}</td>
-                            </tr>
-                            <tr>
-                                <td>Saturated Fat</td>
-                                <td>${food.saturatedFat}g</td>
-                                <td>${food.saturatedFat > 3 ? 'High' : 'Low'}</td>
-                            </tr>
-                            <tr>
-                                <td>Glycemic Index</td>
-                                <td>${food.glycemicIndex}</td>
-                                <td>${food.glycemicIndex > 70 ? 'High' : food.glycemicIndex > 55 ? 'Medium' : 'Low'}</td>
-                            </tr>
-                        </table>
-                        <div class="${food.status === 'warning' ? 'warning' : 'safe'}" style="margin-top: 20px; padding: 15px;">
-                            <strong>Recommendation:</strong> ${food.message}
-                        </div>
-                    `;
-                    resultSection.innerHTML = resultHTML;
-                    resultSection.style.display = "block";
+                const foodData = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+                if (foodData) {
+                    let food;
+                    try {
+                        food = JSON.parse(foodData).food;
+                    } catch (e) {
+                        throw new Error('Invalid JSON response from API');
+                    }
+                    if (food && food.name) {
+                        let resultHTML = `
+                            <h3>Results for: ${food.name.charAt(0).toUpperCase() + food.name.slice(1)}</h3>
+                            <p><strong>Ingredients:</strong> ${food.ingredients.join(', ')}</p>
+                            <table>
+                                <tr>
+                                    <th>Nutrient</th>
+                                    <th>Amount (per serving)</th>
+                                    <th>Concern Level</th>
+                                </tr>
+                                <tr>
+                                    <td>Sodium</td>
+                                    <td>${food.sodium}mg</td>
+                                    <td>${food.sodium > 500 ? 'High' : 'Low'}</td>
+                                </tr>
+                                <tr>
+                                    <td>Sugar</td>
+                                    <td>${food.sugar}g</td>
+                                    <td>${food.sugar > 5 ? 'High' : 'Low'}</td>
+                                </tr>
+                                <tr>
+                                    <td>Saturated Fat</td>
+                                    <td>${food.saturatedFat}g</td>
+                                    <td>${food.saturatedFat > 3 ? 'High' : 'Low'}</td>
+                                </tr>
+                                <tr>
+                                    <td>Glycemic Index</td>
+                                    <td>${food.glycemicIndex}</td>
+                                    <td>${food.glycemicIndex > 70 ? 'High' : food.glycemicIndex > 55 ? 'Medium' : 'Low'}</td>
+                                </tr>
+                            </table>
+                            <div class="${food.status === 'warning' ? 'warning' : 'safe'}" style="margin-top: 20px; padding: 15px;">
+                                <strong>Recommendation:</strong> ${food.message}
+                            </div>
+                        `;
+                        resultSection.innerHTML = resultHTML;
+                        resultSection.style.display = "block";
+                    } else {
+                        resultSection.innerHTML = `
+                            <div class="warning">
+                                <p>Food not found or invalid response. Please try another item or consult with a nutritionist.</p>
+                                <p>Common safe foods for three highs: steamed fish, leafy greens, whole grains, berries, nuts (unsalted).</p>
+                            </div>
+                        `;
+                        resultSection.style.display = "block";
+                    }
                 } else {
-                    resultSection.innerHTML = `
-                        <div class="warning">
-                            <p>Food not found in our database. Please try another item or consult with a nutritionist.</p>
-                            <p>Common safe foods for three highs: steamed fish, leafy greens, whole grains, berries, nuts (unsalted).</p>
-                        </div>
-                    `;
-                    resultSection.style.display = "block";
+                    throw new Error('No valid data returned from API');
                 }
             })
             .catch(error => {
@@ -229,7 +263,7 @@
                 console.error('Error fetching food data:', error);
                 resultSection.innerHTML = `
                     <div class="warning">
-                        <p>Error fetching food data. Please try again later.</p>
+                        <p>Error fetching food data: ${error.message}. Please try again later.</p>
                         <p>Common safe foods for three highs: steamed fish, leafy greens, whole grains, berries, nuts (unsalted).</p>
                     </div>
                 `;
